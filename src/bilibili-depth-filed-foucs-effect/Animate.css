@@ -1,0 +1,29 @@
+.animate-wraper {
+  height: 160px;
+  position: relative;
+  overflow: hidden;
+}
+
+.animate__img-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  --offset: 0px;
+  --blur: 2px;
+}
+
+.animate__img {
+  display: block;
+  width: 110%;
+  height: 100%;
+  object-fit: cover;
+
+  transform: translatex(var(--offset));
+  filter: blur(var(--blur));
+}
