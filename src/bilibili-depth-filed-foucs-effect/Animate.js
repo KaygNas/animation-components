@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useCallback, useState, useEffect } from 'react'
 import './Animate.css'
 
 /*
@@ -14,14 +14,14 @@ export default function Animate(props) {
     * lastPosition 上次运动鼠标的位置, 用百分比表示
     * progress 景深和偏移效果的进度
     */
-    const movementDetailRef = useRef({ lastPosition: 0, progress: 0 })
-    const divRef = useRef([])
+    const [movementDetail, setMovementDetail] = useState({ lastPosition: 0, progress: 0 })
     const intervalIDRef = useRef(null)
+    const divRef = useRef()
 
-    const movementControl = (progress, blurBase, offsetBase) => {
+    const movementControl = useCallback((progress, blurBase, offsetBase, target) => {
         blurBase = blurBase || 5
         offsetBase = offsetBase || 20
-        const images = divRef.current.querySelectorAll ? divRef.current.querySelectorAll('img') : []
+        const images = target.querySelectorAll ? target.querySelectorAll('img') : []
         let offset = offsetBase * progress
 
         images.forEach((image, index) => {
@@ -41,20 +41,20 @@ export default function Animate(props) {
             image.style.setProperty('--offset', `${offset}px`)
             image.style.setProperty('--blur', `${blurValue}px`)
         })
-    }
+    }, [])
 
-    const calcCurrentPosition = (event) => {
-        return event.clientX / divRef.current.offsetWidth
-    }
+    const calcCurrentPosition = useCallback((event) => {
+        return event.clientX / event.currentTarget.offsetWidth
+    }, [])
 
-    const calcProgress = (currentPosition) => {
+    const calcProgress = useCallback((currentPosition, movementDetail) => {
         // 通过两次鼠标移动的位置差来控制效果变化
-        const percentage = currentPosition - movementDetailRef.current.lastPosition
-        const progress = movementDetailRef.current.progress + percentage
+        const percentage = currentPosition - movementDetail.lastPosition
+        const progress = movementDetail.progress + percentage
         return progress
-    }
+    }, [])
 
-    const playReset = (start, end, duration) => {
+    const playReset = (start, end, duration, target) => {
         duration = duration || 400
         const FRAME_INTERVAL = 40
         const FRAME_QTY = duration / FRAME_INTERVAL
@@ -68,10 +68,10 @@ export default function Animate(props) {
                 // 好像应该用其他函数才对
                 const step = (end - start) * (Math.log(++frameCount) / Math.log(FRAME_QTY))
                 const progress = start + step
-                movementControl(progress, props.blurBase, props.offsetBase)
+                movementControl(progress, props.blurBase, props.offsetBase, target)
 
                 //更新progress状态
-                movementDetailRef.current.progress = progress
+                setMovementDetail({ ...movementDetail, progress })
             }
         }
 
@@ -81,39 +81,38 @@ export default function Animate(props) {
 
     const mousemoveHandle = (event) => {
         const currentPosition = calcCurrentPosition(event)
-        const progress = calcProgress(currentPosition)
-        movementControl(progress, props.blurBase, props.offsetBase)
-        // 更新运动记录
-        movementDetailRef.current = { lastPosition: currentPosition, progress }
+        const progress = calcProgress(currentPosition, movementDetail)
+        movementControl(progress, props.blurBase, props.offsetBase, event.currentTarget)
+
+        //更新状态
+        setMovementDetail({ lastPosition: currentPosition, progress })
     }
 
     const mouseenterHandle = (event) => {
         clearInterval(intervalIDRef.current)
         const currentPosition = calcCurrentPosition(event)
-        // 更新运动记录
-        movementDetailRef.current.lastPosition = currentPosition
+
+        //更新状态
+        setMovementDetail({ ...movementDetail, lastPosition: currentPosition })
     }
 
     const mouseleaveHandle = (event) => {
-        intervalIDRef.current = playReset(movementDetailRef.current.progress, 0, props.resetDuration)
+        intervalIDRef.current = playReset(movementDetail.progress, 0, props.resetDuration, event.currentTarget)
     }
 
     useEffect(() => {
-        //初始化所有图片的offset和blurvalue
-        movementControl(0)
-        divRef.current.addEventListener('mouseenter', mouseenterHandle)
-        divRef.current.addEventListener('mousemove', mousemoveHandle)
-        divRef.current.addEventListener('mouseleave', mouseleaveHandle)
-        return () => {
-            divRef.current.removeEventListener('mouseenter', mouseenterHandle)
-            divRef.current.removeEventListener('mousemove', mousemoveHandle)
-            divRef.current.removeEventListener('mouseleave', mouseleaveHandle)
-        }
-    }, [])
-
+        movementControl(0, props.blurBase, props.offsetBase, divRef.current)
+    }, [movementControl, props.blurBase, props.offsetBase])
 
     return (
-        <div ref={divRef} className="animate-wraper" style={props.style}>
+        <div
+            ref={divRef}
+            className="animate-wraper"
+            style={props.style}
+            onMouseEnter={mouseenterHandle}
+            onMouseMove={mousemoveHandle}
+            onMouseLeave={mouseleaveHandle}
+        >
             {props.images.map((image, index) => {
                 return (
                     <div key={index} className="animate__img-container">
